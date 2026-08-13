@@ -24,6 +24,8 @@ Tier B forbids relation-dependent actions: `Handoff`, `Deliver Artifact`, `Inspe
 
 An `agent_declared` `CollaborationObserved.handoff` is the one qualified relation report allowed in V0.2. It emits `Report Handoff` with `projection_strength: qualified` and a qualified speech bubble. It never creates `target_mochi`, Handoff/Deliver Artifact semantics, task-binding changes, artifact ownership transfer, Review Started, or completion. If the named target is not a registered participant, retain only the source Agent's qualified report and mark the target unverified.
 
+The deterministic fixture contract may assert the resulting Projection JSON. Existing and missing qualified targets both remain `target_mochi: null` in the current V0.2 contract; a role name in an Agent declaration is not an identity. A malformed output that supplies a target Mochi or changes the strength to `factual` must fail the fixture expectation.
+
 ## Ambient Behavior Contract
 
 Ambient Behavior is a typed input, but not an Event, and never enters the Semantic Event stream or task state. Allowed kinds are `tea`, `sleep`, `walk`, `sit`, and `idle_play`. It may produce only an Ambient Projection.

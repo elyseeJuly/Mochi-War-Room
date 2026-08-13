@@ -18,7 +18,11 @@ V0.2 replays JSONL records. Each semantic event contains at least:
 }
 ```
 
-Optional fixture fields are `target_agent_ref`, `status`, `host_capability`, `task_registry`, `evidence_registry`, `attention_level`, `semantic_action`, `source_mochi`, and `target_mochi`. This is not a production Runtime schema.
+Optional fixture fields are `project_ref`, `target_agent_ref`, `status`, `host_capability`, `task_registry`, `evidence_registry`, `attention_level`, `semantic_action`, `source_mochi`, and `target_mochi`. This is not a production Runtime schema. `project_ref` plus the `task_ref` on `RoomLifecycle.started` define the current room scope; records for another project or task are ignored for participants, valid bindings, task states, attention, evidence, recent events, and Projection.
+
+The first `RoomLifecycle.started` record may also carry a small `fixture_expectations` object. It is test metadata, not a Runtime event. The validator supports `expected_result`, `expect_projection` (one object or a list of exact Projection fields), `forbid_projection_actions`, and `expect_summary` checks such as `active_task_refs_absent`, `active_task_states`, `unresolved_attention_contains`, and `unresolved_attention_absent`. These assertions protect output contract fields without introducing snapshot infrastructure.
+
+Replay-only annotations such as `host_signal`, `stable_agent_id`, `parent_thread_ref`, `timed_out`, `closing_request_submitted`, and `previous_status` preserve a small amount of source-trace context. They never create a Semantic Event or Projection on their own. In particular, `timed_out: true` can only accompany a normalized `TaskStateChanged.interrupted`, and `previous_status: running` can only accompany `AgentLifecycle.stopped`.
 
 An Ambient record is a separate typed input and is not a Semantic Event:
 

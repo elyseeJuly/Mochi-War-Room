@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic validator for the Mochi War Room V0.2 fixture contract."""
+"""Deterministic validator for the Mochi War Room V0.2.1 fixture contract."""
 
 from __future__ import annotations
 
@@ -48,6 +48,7 @@ AMBIENT_SEMANTIC_FIELDS = {
     "event_id",
     "event_type",
     "kind",
+    "project_ref",
     "task_ref",
     "provenance",
     "evidence_ref",
@@ -157,6 +158,169 @@ def is_qualified_handoff(event: dict[str, Any]) -> bool:
         and event.get("kind") == "handoff"
         and event.get("provenance") == "agent_declared"
     )
+
+
+def room_scope_for(events: list[dict[str, Any]]) -> tuple[str | None, str | None]:
+    """Return the current room's project and task scope from RoomLifecycle.started."""
+    for event in events:
+        if (
+            not is_ambient_record(event)
+            and event.get("event_type") == "RoomLifecycle"
+            and event.get("kind") == "started"
+        ):
+            return event.get("project_ref"), event.get("task_ref")
+    return None, None
+
+
+def event_in_room_scope(
+    event: dict[str, Any],
+    room_project_ref: str | None,
+    room_task_ref: str | None,
+) -> bool:
+    """Keep Host-stream records inside the active project/task room scope."""
+    if is_ambient_record(event):
+        return True
+    if room_task_ref is None or event.get("task_ref") != room_task_ref:
+        return False
+    if room_project_ref is not None and event.get("project_ref") != room_project_ref:
+        return False
+    return True
+
+
+def fixture_expectations_for(
+    events: list[dict[str, Any]],
+    errors: list[str],
+) -> dict[str, Any]:
+    """Read the optional, fixture-only output assertions from room start."""
+    starts = [
+        event
+        for event in events
+        if (
+            not is_ambient_record(event)
+            and event.get("event_type") == "RoomLifecycle"
+            and event.get("kind") == "started"
+        )
+    ]
+    if not starts or "fixture_expectations" not in starts[0]:
+        return {}
+    expectations = starts[0].get("fixture_expectations")
+    if not isinstance(expectations, dict):
+        errors.append("RoomLifecycle.started fixture_expectations must be an object")
+        return {}
+    expected_result = expectations.get("expected_result")
+    if expected_result is not None and expected_result not in {"pass", "fail"}:
+        errors.append("fixture_expectations.expected_result must be pass or fail")
+    return expectations
+
+
+def _as_expectation_list(value: Any) -> list[dict[str, Any]] | None:
+    if value is None:
+        return []
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, list) and all(isinstance(item, dict) for item in value):
+        return value
+    return None
+
+
+def _summary_has_expected_states(
+    actual: dict[str, Any],
+    expected: dict[str, Any],
+) -> list[str]:
+    mismatches: list[str] = []
+    for agent_ref, task_states in expected.items():
+        if not isinstance(task_states, dict):
+            mismatches.append(f"expected active_task_states for {agent_ref!r} must be an object")
+            continue
+        actual_agent_states = actual.get(agent_ref)
+        if not isinstance(actual_agent_states, dict):
+            mismatches.append(f"missing active_task_states for participant {agent_ref!r}")
+            continue
+        for task_ref, state in task_states.items():
+            if actual_agent_states.get(task_ref) != state:
+                mismatches.append(
+                    f"active_task_states[{agent_ref!r}][{task_ref!r}] expected {state!r}, "
+                    f"got {actual_agent_states.get(task_ref)!r}"
+                )
+    return mismatches
+
+
+def validate_fixture_expectations(
+    expectations: dict[str, Any],
+    projections: list[dict[str, Any]],
+    summary: dict[str, Any],
+    errors: list[str],
+) -> None:
+    """Check only small, explicit Projection/Summary assertions embedded in a fixture."""
+    if not expectations:
+        return
+    expected_projections = _as_expectation_list(expectations.get("expect_projection"))
+    if expected_projections is None:
+        errors.append("fixture_expectations.expect_projection must be an object or list of objects")
+    else:
+        for expected in expected_projections:
+            event_id = expected.get("event_id")
+            matches = [projection for projection in projections if projection.get("event_id") == event_id]
+            if not matches:
+                errors.append(f"expected Projection for event {event_id!r} was not emitted")
+                continue
+            actual = matches[0]
+            for field in (
+                "action",
+                "projection_strength",
+                "target_mochi",
+                "source_mochi",
+                "provenance",
+                "evidence_ref",
+                "attention",
+            ):
+                if field in expected and actual.get(field) != expected[field]:
+                    errors.append(
+                        f"Projection {event_id!r} field {field!r} expected {expected[field]!r}, "
+                        f"got {actual.get(field)!r}"
+                    )
+
+    forbidden_actions = expectations.get("forbid_projection_actions", [])
+    if not isinstance(forbidden_actions, list) or not all(isinstance(action, str) for action in forbidden_actions):
+        errors.append("fixture_expectations.forbid_projection_actions must be a list of strings")
+    else:
+        forbidden = set(forbidden_actions)
+        for projection in projections:
+            if projection.get("action") in forbidden:
+                errors.append(
+                    f"forbidden Projection action {projection.get('action')!r} emitted "
+                    f"for event {projection.get('event_id')!r}"
+                )
+
+    expected_summary = expectations.get("expect_summary", {})
+    if expected_summary is None:
+        expected_summary = {}
+    if not isinstance(expected_summary, dict):
+        errors.append("fixture_expectations.expect_summary must be an object")
+        return
+    if "participants" in expected_summary and summary.get("participants") != expected_summary["participants"]:
+        errors.append(
+            f"summary participants expected {expected_summary['participants']!r}, "
+            f"got {summary.get('participants')!r}"
+        )
+    active_task_states = summary.get("active_task_states", {})
+    for task_ref in expected_summary.get("active_task_refs_absent", []):
+        if any(task_ref in states for states in active_task_states.values()):
+            errors.append(f"summary must exclude active task {task_ref!r}")
+    expected_states = expected_summary.get("active_task_states")
+    if expected_states is not None:
+        if not isinstance(expected_states, dict):
+            errors.append("fixture_expectations.expect_summary.active_task_states must be an object")
+        else:
+            for mismatch in _summary_has_expected_states(active_task_states, expected_states):
+                errors.append(mismatch)
+    unresolved = set(summary.get("unresolved_attention", []))
+    for attention_id in expected_summary.get("unresolved_attention_contains", []):
+        if attention_id not in unresolved:
+            errors.append(f"summary must retain unresolved attention {attention_id!r}")
+    for attention_id in expected_summary.get("unresolved_attention_absent", []):
+        if attention_id in unresolved:
+            errors.append(f"summary must not retain resolved attention {attention_id!r}")
 
 
 def evidence_type_for(
@@ -288,6 +452,7 @@ def validate_derived_event(
     events_by_id: dict[str, dict[str, Any]],
     errors: list[str],
     invalid_event_ids: set[str] | None = None,
+    in_scope_event_ids: set[str] | None = None,
 ) -> bool:
     """Validate only the explicitly whitelisted deterministic derivations."""
     line = event.get("_line", "?")
@@ -307,6 +472,9 @@ def validate_derived_event(
     for ref in refs:
         if ref not in events_by_id:
             errors.append(f"line {line}: derived_from references unknown event {ref}")
+            valid = False
+        elif in_scope_event_ids is not None and ref not in in_scope_event_ids:
+            errors.append(f"line {line}: derived_from references an event outside the current room scope: {ref}")
             valid = False
         elif ref == event.get("event_id"):
             errors.append(f"line {line}: derived event cannot reference itself")
@@ -404,8 +572,12 @@ def validate_derived_event(
 def validate(events: list[dict[str, Any]], parse_errors: list[str] | None = None) -> dict[str, Any]:
     errors = list(parse_errors or [])
     warnings: list[str] = []
+    room_project_ref, room_task_ref = room_scope_for(events)
+    fixture_expectations = fixture_expectations_for(events, errors)
     event_ids: set[str] = set()
     events_by_id: dict[str, dict[str, Any]] = {}
+    in_scope_event_ids: set[str] = set()
+    out_of_scope_event_ids: set[str] = set()
     ambient_records: list[dict[str, Any]] = []
     ambient_projections: list[dict[str, Any]] = []
     evidence_registry: dict[str, dict[str, Any]] = {}
@@ -424,6 +596,8 @@ def validate(events: list[dict[str, Any]], parse_errors: list[str] | None = None
     capability: dict[str, Any] | None = None
     room_started = False
     room_closed = False
+    if isinstance(room_task_ref, str):
+        known_tasks.add(room_task_ref)
 
     for event in events:
         line = event.get("_line", "?")
@@ -456,6 +630,10 @@ def validate(events: list[dict[str, Any]], parse_errors: list[str] | None = None
             errors.append(f"line {line}: derived_from must be a list")
         if not basic_event_is_valid(event):
             invalid_event_ids.add(event_id)
+        if not event_in_room_scope(event, room_project_ref, room_task_ref):
+            out_of_scope_event_ids.add(event_id)
+            continue
+        in_scope_event_ids.add(event_id)
         if event.get("event_type") == "RoomLifecycle" and event.get("kind") == "started":
             room_started = True
             if capability is None:
@@ -564,9 +742,38 @@ def validate(events: list[dict[str, Any]], parse_errors: list[str] | None = None
     for event in events:
         line = event.get("_line", "?")
         event_id = event.get("event_id")
+        if is_ambient_record(event):
+            continue
+        if event_id not in in_scope_event_ids:
+            continue
         event_type = event.get("event_type")
         kind = event.get("kind")
         agent = event.get("agent_ref")
+        if "timed_out" in event:
+            if not isinstance(event.get("timed_out"), bool):
+                errors.append(f"line {line}: timed_out must be boolean")
+                invalid_event_ids.add(event_id)
+            elif event.get("timed_out") and not (
+                event_type == "TaskStateChanged" and kind == "interrupted"
+            ):
+                errors.append(
+                    f"line {line}: timed_out can only normalize to TaskStateChanged.interrupted"
+                )
+                invalid_event_ids.add(event_id)
+        if event.get("closing_request_submitted") is True and (
+            event_type == "TaskStateChanged" and kind == "completed"
+        ):
+            errors.append(
+                f"line {line}: closing request submission cannot normalize to TaskStateChanged.completed"
+            )
+            invalid_event_ids.add(event_id)
+        if event.get("previous_status") == "running" and not (
+            event_type == "AgentLifecycle" and kind == "stopped"
+        ):
+            errors.append(
+                f"line {line}: previous_status=running may only accompany AgentLifecycle.stopped"
+            )
+            invalid_event_ids.add(event_id)
         if isinstance(agent, str) and agent and event_type not in {"AgentLifecycle", "RoomLifecycle"} and agent not in participants:
             errors.append(f"line {line}: source Agent {agent} is not a registered real participant")
             invalid_event_ids.add(event_id)
@@ -670,7 +877,7 @@ def validate(events: list[dict[str, Any]], parse_errors: list[str] | None = None
                 if not derived_confirmation and (event.get("provenance") != "host_native" or not event.get("evidence_ref")):
                     errors.append(f"line {line}: {status} intervention needs Host confirmation and evidence_ref")
                     invalid_event_ids.add(event_id)
-                if not related or related not in events_by_id:
+                if not related or related not in events_by_id or related not in in_scope_event_ids:
                     errors.append(f"line {line}: {status} intervention needs a prior related request")
                     invalid_event_ids.add(event_id)
                 else:
@@ -697,7 +904,7 @@ def validate(events: list[dict[str, Any]], parse_errors: list[str] | None = None
                 if event.get("provenance") not in {"human_declared", "host_native"}:
                     errors.append(f"line {line}: intervention request has invalid authority provenance")
                     invalid_event_ids.add(event_id)
-                if related and related not in events_by_id:
+                if related and (related not in events_by_id or related not in in_scope_event_ids):
                     errors.append(f"line {line}: intervention request references unknown event {related}")
                     invalid_event_ids.add(event_id)
             interventions[event_id] = event
@@ -804,7 +1011,15 @@ def validate(events: list[dict[str, Any]], parse_errors: list[str] | None = None
         if event.get("provenance") != "derived":
             continue
         event_id = event.get("event_id")
-        if not validate_derived_event(event, events_by_id, errors, invalid_event_ids):
+        if event_id not in in_scope_event_ids:
+            continue
+        if not validate_derived_event(
+            event,
+            events_by_id,
+            errors,
+            invalid_event_ids,
+            in_scope_event_ids,
+        ):
             invalid_derived_events.add(event_id)
             invalid_event_ids.add(event_id)
             continue
@@ -860,7 +1075,8 @@ def validate(events: list[dict[str, Any]], parse_errors: list[str] | None = None
                 resolved_interventions.add(request_id)
 
     summary = {
-        "room": events[0].get("task_ref") if events else None,
+        "room": room_task_ref,
+        "project_ref": room_project_ref,
         "host_tier": host_tier,
         "mode": mode,
         "participants": sorted(participants),
@@ -870,7 +1086,10 @@ def validate(events: list[dict[str, Any]], parse_errors: list[str] | None = None
         "recent_events": [
             e.get("event_id")
             for e in events[-10:]
-            if not is_ambient_record(e) and e.get("event_id") is not None
+            if (
+                not is_ambient_record(e)
+                and e.get("event_id") in in_scope_event_ids
+            )
         ],
         "active_interventions": sorted(
             event_id for event_id, event in interventions.items()
@@ -881,6 +1100,7 @@ def validate(events: list[dict[str, Any]], parse_errors: list[str] | None = None
         "ambient_projection_count": len(ambient_projections),
         "rejected_projection_count": len(rejected_projections),
     }
+    validate_fixture_expectations(fixture_expectations, projections, summary, errors)
     return {
         "ok": not errors,
         "errors": errors,
@@ -889,6 +1109,7 @@ def validate(events: list[dict[str, Any]], parse_errors: list[str] | None = None
         "projections": projections,
         "ambient_projections": ambient_projections,
         "rejected_projections": rejected_projections,
+        "fixture_expectations": fixture_expectations,
     }
 
 
@@ -902,6 +1123,12 @@ def validate_path(path: Path) -> dict[str, Any]:
 def print_result(result: dict[str, Any], expected: str | None = None, emit: bool = False) -> bool:
     actual = "pass" if result["ok"] else "fail"
     matches = expected is None or actual == expected
+    declared_expected = result.get("fixture_expectations", {}).get("expected_result")
+    if expected is not None and declared_expected is not None and declared_expected != expected:
+        matches = False
+        result["errors"].append(
+            f"fixture expectation declares {declared_expected!r}, CLI expects {expected!r}"
+        )
     label = "PASS" if matches and actual == "pass" else "EXPECTED FAIL" if matches else "FAIL"
     print(f"{label}: {result.get('fixture', '<stdin>')} [{actual}]")
     for error in result["errors"]:
@@ -949,6 +1176,7 @@ def main() -> int:
             (root / "examples/invalid-derived-events.jsonl", "fail"),
             (root / "examples/attention-adversarial-events.jsonl", "pass"),
             (root / "examples/task-binding-adversarial-events.jsonl", "fail"),
+            (root / "examples/real-host-trace-replay-events.jsonl", "pass"),
         ])
     if args.fixture:
         checks.extend((path, args.expect) for path in args.fixture)
