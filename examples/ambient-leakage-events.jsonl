@@ -1,0 +1,6 @@
+{"event_id":"al-001","event_type":"RoomLifecycle","kind":"started","agent_ref":null,"task_ref":"task-al","provenance":"host_native","timestamp":"2026-08-13T04:10:00Z","evidence_ref":null,"derived_from":[],"host_capability":{"supports_real_agents":true,"supports_task_binding":true,"supports_lifecycle":true,"supports_artifacts":true,"supports_review_relation":true,"supports_human_input":true}}
+{"event_id":"al-002","event_type":"AgentLifecycle","kind":"started","agent_ref":"builder-al","task_ref":"task-al","provenance":"host_native","timestamp":"2026-08-13T04:10:01Z","evidence_ref":null,"derived_from":[]}
+{"event_id":"al-003","event_type":"AgentLifecycle","kind":"started","agent_ref":"qa-al","task_ref":"task-al","provenance":"host_native","timestamp":"2026-08-13T04:10:02Z","evidence_ref":null,"derived_from":[]}
+{"ambient_behavior":{"actor_ref":"builder-al","kind":"tea","timestamp":"2026-08-13T04:10:03Z"}}
+{"ambient_behavior":{"actor_ref":"builder-al","kind":"qa_review","timestamp":"2026-08-13T04:10:04Z"}}
+{"event_id":"al-004","event_type":"RoomLifecycle","kind":"closed","agent_ref":null,"task_ref":"task-al","provenance":"host_native","timestamp":"2026-08-13T04:10:05Z","evidence_ref":null,"derived_from":[]}

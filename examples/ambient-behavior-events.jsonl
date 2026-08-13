@@ -1,0 +1,9 @@
+{"event_id":"ab-001","event_type":"RoomLifecycle","kind":"started","agent_ref":null,"task_ref":"task-ab","provenance":"host_native","timestamp":"2026-08-13T04:00:00Z","evidence_ref":null,"derived_from":[],"host_capability":{"supports_real_agents":true,"supports_task_binding":true,"supports_lifecycle":true,"supports_artifacts":true,"supports_review_relation":true,"supports_human_input":true}}
+{"event_id":"ab-002","event_type":"AgentLifecycle","kind":"started","agent_ref":"builder-ab","task_ref":"task-ab","provenance":"host_native","timestamp":"2026-08-13T04:00:01Z","evidence_ref":null,"derived_from":[]}
+{"event_id":"ab-003","event_type":"AgentLifecycle","kind":"started","agent_ref":"qa-ab","task_ref":"task-ab","provenance":"host_native","timestamp":"2026-08-13T04:00:02Z","evidence_ref":null,"derived_from":[]}
+{"ambient_behavior":{"actor_ref":"builder-ab","kind":"tea","timestamp":"2026-08-13T04:00:03Z"}}
+{"ambient_behavior":{"actor_ref":"qa-ab","kind":"sleep","timestamp":"2026-08-13T04:00:04Z"}}
+{"ambient_behavior":{"actor_ref":"builder-ab","kind":"walk","timestamp":"2026-08-13T04:00:05Z"}}
+{"ambient_behavior":{"actor_ref":"qa-ab","kind":"sit","timestamp":"2026-08-13T04:00:06Z"}}
+{"ambient_behavior":{"actor_ref":"builder-ab","kind":"idle_play","timestamp":"2026-08-13T04:00:07Z"}}
+{"event_id":"ab-004","event_type":"RoomLifecycle","kind":"closed","agent_ref":null,"task_ref":"task-ab","provenance":"host_native","timestamp":"2026-08-13T04:00:08Z","evidence_ref":null,"derived_from":[]}

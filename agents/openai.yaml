@@ -1,0 +1,14 @@
+interface:
+  display_name: Mochi War Room
+  short_description: Truthful multi-agent collaboration projection
+  default_prompt: Use Mochi War Room for an explicitly activated multi-agent task
+    to validate provenance and produce a truthful collaboration projection.
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true
