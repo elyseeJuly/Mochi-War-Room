@@ -50,6 +50,7 @@ const appState = {
   game: null,
   attentionClearTimer: null,
   completionTimer: null,
+  celebratingUntil: 0,
   lastCompletionLabel: null,
   level1Until: 0,
 };
@@ -123,7 +124,8 @@ function residentMarkup(resident) {
   const formClass = resident.base_form === "berry" ? "form-berry" : "form-cloud";
   const variantClass = resident.appearance_variant === "night" ? "variant-night" : "";
   const selectedClass = appState.selectedResidentId === resident.resident_id ? "selected" : "";
-  return `<div class="mochi-entity ${formClass} ${variantClass} ${selectedClass}" data-id="${escapeHtml(resident.resident_id)}">
+  const celebrationClass = appState.celebratingUntil > performance.now() ? "anim-celebrate" : "";
+  return `<div class="mochi-entity ${formClass} ${variantClass} ${selectedClass} ${celebrationClass}" data-id="${escapeHtml(resident.resident_id)}">
     <button class="mochi-hit" type="button" data-resident="${escapeHtml(resident.resident_id)}" aria-label="选择 ${escapeHtml(displayName(resident))}">
       <span class="mochi-shape" aria-hidden="true"></span>
       <span class="face-eye left" aria-hidden="true"></span><span class="face-eye right" aria-hidden="true"></span>
@@ -227,12 +229,12 @@ function performLifeAction(action) {
       }
     }, 650);
   }
-  renderResidents();
 }
 
 function runAmbient() {
   if (document.hidden || coordinator.state.attention_state !== ATTENTION_STATES.NORMAL) return;
   if (performance.now() < appState.interactionBusyUntil) return;
+  if (Date.now() < appState.level1Until && Math.random() < 0.6) return;
   const residents = appState.life.residents;
   if (!residents.length) return;
   const options = ["wander", "rest", "play", "inspect"];
@@ -310,9 +312,13 @@ function addCompletionMemory(label) {
 
 function celebrateCompletion(label = "A work session completed.") {
   addCompletionMemory(label);
+  appState.celebratingUntil = performance.now() + 3000;
+  renderResidents();
   appState.life.residents.forEach((resident) => animateResident(resident.resident_id, "anim-celebrate", 3000));
   setNote("Work Mochi 收起工作标签，Resident Mochi 庆祝了一小会儿。");
   window.setTimeout(() => {
+    appState.celebratingUntil = 0;
+    renderResidents();
     if (coordinator.state.war_room_active) adapter.emit({ type: "war_room_active", active: false });
   }, 3000);
 }
@@ -381,6 +387,7 @@ class MochiCatchGame {
     this.nextSpawnAt = 0;
     this.spawnEvery = 1350;
     this.itemId = 0;
+    this.lastTime = 0;
     this.basketX = 0.5;
     this.raf = null;
     this.completionQueued = false;
@@ -407,20 +414,24 @@ class MochiCatchGame {
   start() {
     if (this.lifecycle === "active" || this.lifecycle === "finished" || this.lifecycle === "disposed") return;
     this.lifecycle = "active";
-    this.nextSpawnAt = performance.now() + 450;
+    this.lastTime = performance.now();
+    this.nextSpawnAt = this.lastTime + 450;
     this.feedback.textContent = "接住它们吧";
-    this.loop(performance.now());
+    this.loop(this.lastTime);
   }
 
   loop(time) {
     if (this.lifecycle !== "active") return;
+    const delta = this.lastTime ? Math.max(0, time - this.lastTime) : 0;
+    this.lastTime = time;
     if (time >= this.nextSpawnAt && this.round < this.rounds) {
       this.spawn(time);
       this.nextSpawnAt = time + this.spawnEvery;
     }
     const stageHeight = this.stage.clientHeight || 330;
     for (const item of [...this.items]) {
-      const progress = clamp((time - item.born) / item.duration, 0, 1);
+      item.elapsed += delta;
+      const progress = clamp(item.elapsed / item.duration, 0, 1);
       item.y = -18 + progress * (stageHeight - 40);
       item.el.style.transform = `translate(${item.x}px, ${item.y}px)`;
       if (progress >= 1) {
@@ -447,7 +458,7 @@ class MochiCatchGame {
     el.className = "falling-item";
     el.textContent = "●";
     this.stage.append(el);
-    this.items.push({ id: ++this.itemId, x, y: -18, born: time, duration: 2200 + Math.random() * 500, el });
+    this.items.push({ id: ++this.itemId, x, y: -18, elapsed: 0, duration: 2200 + Math.random() * 500, el });
     this.syncVisuals();
   }
 
@@ -478,7 +489,7 @@ class MochiCatchGame {
       rounds: this.rounds,
       score: this.score,
       basket_x: this.basketX,
-      falling_items: this.items.map((item) => ({ id: item.id, x: item.x, y: item.y, progress: 0 })),
+      falling_items: this.items.map((item) => ({ id: item.id, x: item.x, y: item.y, elapsed: item.elapsed, duration: item.duration })),
       completion_state: this.completionQueued ? "queued" : "active",
     };
   }
@@ -498,6 +509,7 @@ class MochiCatchGame {
     if (this.lifecycle !== "paused") return;
     if (this.completionQueued) return;
     this.lifecycle = "active";
+    this.lastTime = performance.now();
     this.nextSpawnAt = performance.now() + 350;
     const button = $("catch-pause");
     if (button) button.textContent = "暂停";
@@ -529,6 +541,7 @@ class MochiCatchGame {
     this.round = 0;
     this.score = 0;
     this.itemId = 0;
+    this.lastTime = 0;
     this.completionQueued = false;
     this.lifecycle = "init";
     this.syncVisuals();
