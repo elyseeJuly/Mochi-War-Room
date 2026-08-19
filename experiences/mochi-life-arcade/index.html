@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5efe5" />
+    <meta name="description" content="Mochi War Room Skill 内的 Life & Arcade V0.1 Experience Layer vertical slice" />
+    <title>Mochi War Room — Life &amp; Arcade</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell" id="app">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">✦</div>
+          <div>
+            <p class="eyebrow">MOCHI WAR ROOM · EXPERIENCE LAYER</p>
+            <h1>Life &amp; Arcade</h1>
+          </div>
+          <span class="version-chip">V0.1 Vertical Slice</span>
+        </div>
+        <div class="topbar-status">
+          <span class="status-dot active" id="room-status-dot" aria-hidden="true"></span>
+          <span id="room-status-text">War Room active · mock public signals</span>
+          <button class="quiet-button" id="focus-work" type="button">回到 Work</button>
+        </div>
+      </header>
+
+      <main class="park" id="park" aria-label="Mochi Pet Park">
+        <section class="zone work-zone" aria-labelledby="work-title">
+          <div class="zone-heading">
+            <div>
+              <p class="zone-kicker">FACT ANCHOR</p>
+              <h2 id="work-title">Work Area</h2>
+            </div>
+            <span class="signal-chip">PUBLIC SIGNALS ONLY</span>
+          </div>
+          <p class="zone-description">这里的 Mochi 只代表当前真实工作的公开投影。</p>
+          <div class="work-mochi-list" id="work-mochi-list"></div>
+          <div class="work-note" id="work-note">等待 mock Work Signal…</div>
+        </section>
+
+        <section class="zone life-zone" aria-labelledby="life-title">
+          <div class="zone-heading life-heading">
+            <div>
+              <p class="zone-kicker">AMBIENT LIFE</p>
+              <h2 id="life-title">Life Area</h2>
+            </div>
+            <span class="ambient-chip" id="ambient-state">quietly living</span>
+          </div>
+          <div class="life-stage" id="life-stage">
+            <div class="stage-sun" aria-hidden="true"></div>
+            <div class="stage-cloud cloud-one" aria-hidden="true"></div>
+            <div class="stage-cloud cloud-two" aria-hidden="true"></div>
+            <div class="stage-hill hill-back" aria-hidden="true"></div>
+            <div class="stage-hill hill-front" aria-hidden="true"></div>
+            <div class="stage-path" aria-hidden="true"></div>
+            <div class="visitor-slot" id="visitor-slot"></div>
+            <div class="resident-layer" id="resident-layer"></div>
+            <div class="stage-note" id="stage-note">点一下 Mochi，选一个轻互动。</div>
+          </div>
+          <div class="life-controls">
+            <div class="selected-resident" id="selected-resident">请选择一只 Resident Mochi</div>
+            <div class="interaction-buttons" role="group" aria-label="Mochi interactions">
+              <button class="life-action" data-action="pet" type="button" disabled>✋ Pet</button>
+              <button class="life-action" data-action="snack" type="button" disabled>🍘 Snack</button>
+              <button class="life-action" data-action="toy" type="button" disabled>◌ Toy</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="zone arcade-zone" aria-labelledby="arcade-title">
+          <div class="zone-heading">
+            <div>
+              <p class="zone-kicker">INTERRUPTIBLE PLAY</p>
+              <h2 id="arcade-title">Arcade Corner</h2>
+            </div>
+            <span class="pause-chip">PAUSE + CHECKPOINT</span>
+          </div>
+          <p class="zone-description">一局很短，Human Required 随时可以把你拉回 Work。</p>
+          <div class="arcade-objects">
+            <button class="arcade-object catch-object" data-game="catch" type="button">
+              <span class="arcade-object-art catch-art" aria-hidden="true">◡</span>
+              <span class="arcade-object-copy"><strong>Mochi Catch</strong><small>接住一点好心情 · 30–90s</small></span>
+              <span class="object-arrow" aria-hidden="true">↗</span>
+            </button>
+            <button class="arcade-object memory-object" data-game="memory" type="button">
+              <span class="arcade-object-art memory-art" aria-hidden="true">▦</span>
+              <span class="arcade-object-copy"><strong>Mochi Memory</strong><small>翻开熟悉的小脸 · 1–3m</small></span>
+              <span class="object-arrow" aria-hidden="true">↗</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="memory-shelf" aria-labelledby="memory-title">
+          <div>
+            <p class="zone-kicker">LIFE TRACE</p>
+            <h2 id="memory-title">Tiny memories</h2>
+          </div>
+          <div class="memory-items" id="memory-items">
+            <span class="empty-memory">这里暂时没有需要完成的成就，只有一些小小痕迹。</span>
+          </div>
+        </section>
+      </main>
+
+      <div class="overlay hidden" id="game-overlay" role="dialog" aria-modal="true" aria-labelledby="game-title">
+        <div class="game-window">
+          <div class="game-window-header">
+            <div>
+              <p class="zone-kicker" id="game-kicker">ARCADE</p>
+              <h2 id="game-title">Mochi Arcade</h2>
+            </div>
+            <button class="icon-button" id="close-game" type="button" aria-label="退出游戏">×</button>
+          </div>
+          <div id="game-host"></div>
+        </div>
+      </div>
+
+      <div class="overlay attention-layer hidden" id="attention-overlay" role="alertdialog" aria-modal="true" aria-labelledby="attention-title">
+        <div class="attention-card">
+          <div class="attention-icon" aria-hidden="true">!</div>
+          <div class="attention-content">
+            <p class="zone-kicker">LEVEL 2 · HUMAN REQUIRED</p>
+            <h2 id="attention-title">工作现场需要你</h2>
+            <p id="attention-request">QA Mochi 正在等待一个决定。</p>
+            <div class="attention-state-line" id="attention-state-line">Attention active</div>
+            <div class="attention-actions" id="attention-actions">
+              <button class="primary-button" id="respond-human" type="button">我来处理</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+      <details class="dev-panel">
+        <summary>开发验证入口 · Mock Public Signals</summary>
+        <div class="dev-grid">
+          <button type="button" data-dev="toggle-room">War Room Active / Inactive</button>
+          <button type="button" data-dev="notice">Trigger Level 1</button>
+          <button type="button" data-dev="attention">Trigger Level 2</button>
+          <button type="button" data-dev="respond">Human Respond</button>
+          <button type="button" data-dev="confirm">Host Confirm</button>
+          <button type="button" data-dev="reject">Host Reject</button>
+          <button type="button" data-dev="completion">Trigger Completion</button>
+          <button type="button" data-dev="visitor">Trigger Visitor</button>
+          <button type="button" data-dev="race">Catch Completion Race</button>
+          <button type="button" data-dev="reward-off">Reward-off: <span id="reward-off-label">OFF</span></button>
+          <button type="button" data-dev="reset">Reset local Life</button>
+        </div>
+        <p class="dev-note">这些按钮只模拟 Public Signals，不连接 War Room Runtime，也不参与正常产品体验。</p>
+      </details>
+    </div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

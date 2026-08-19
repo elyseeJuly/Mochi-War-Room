@@ -1,0 +1,10 @@
+{
+  "name": "mochi-life-arcade-v0.1",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check src/domain.js && node --check src/app.js",
+    "test": "node --test"
+  }
+}
